@@ -2,8 +2,9 @@ const fs = require("fs");
 const http = require("http");
 const Route = require("route-parser");
 
-const express = (() => {
+const router = (() => {
   let routes = [];
+  const extIdx = 1;
 
   const mimetype = {
     ".plain": "text/plain",
@@ -22,6 +23,31 @@ const express = (() => {
     ".wav": "audio/wav",
     ".webm": "video/webm",
     ".ogv": "video/ogg",
+  };
+
+  const static = (dir) => {
+    fs.readdir(dir, (err, files) => {
+      files.forEach((file) => {
+        let parsedURL = "";
+        let isExt = file.split(".")[extIdx];
+
+        if (isExt) {
+          parsedURL = "." + isExt;
+
+          if (parsedURL in mimetype) {
+            fs.readFile(`./${dir}/${file}`, (err, data) => {
+              if (err) {
+                return;
+              }
+
+              addRoute("get", "/" + file, (req, res) => {
+                res.send(data);
+              });
+            });
+          }
+        }
+      });
+    });
   };
 
   const addRoute = (method, url, handler) => {
@@ -45,6 +71,8 @@ const express = (() => {
     const listen = (port, cb) => {
       http
         .createServer((req, res) => {
+          console.log("routes: ", routes);
+
           const method = req.method.toLowerCase();
           const url = req.url.toLowerCase();
           const found = findRoute(method, url);
@@ -54,10 +82,22 @@ const express = (() => {
             req.params = found.params;
             res.send = (content) => {
               if (content) {
-                res.writeHead(200, {
-                  "Content-Type": "text/html",
-                });
-                res.end(content);
+                let isStatic = url.split(".")[extIdx];
+
+                if (isStatic) {
+                  let extname = mimetype["." + isStatic];
+
+                  res.writeHead(200, {
+                    "Content-Type": extname,
+                  });
+
+                  res.end(content);
+                } else {
+                  res.writeHead(200, {
+                    "Content-Type": "text/html",
+                  });
+                  res.end(content);
+                }
               } else {
                 res.writeHead(404, {
                   "Content-Type": "text/html",
@@ -80,10 +120,11 @@ const express = (() => {
       get,
       post,
       listen,
+      static,
     };
   };
 
   return router;
 })();
 
-module.exports = express;
+module.exports = router;
